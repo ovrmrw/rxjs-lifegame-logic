@@ -32,7 +32,7 @@ type Action = AliveAction | NextAction;
 /////////////////////// LIFE ///////////////////////
 class Life {
   rounds: Position[]
-  nextState: boolean
+  nextLiveState: boolean
 
   constructor(
     public x: number,
@@ -54,16 +54,12 @@ class Life {
     return [leftTop, centerTop, rightTop, left, right, leftBottom, centerBottom, rightBottom];
   }
 
-  nextLiveState(populate: number) {
-    if (populate >= 2 && populate < 4) {
-      this.nextState = true
+  calculateNextLiveState(aliveLifeCount: number) {
+    if (aliveLifeCount >= 2 && aliveLifeCount < 4) {
+      this.nextLiveState = true
     } else {
-      this.nextState = false
+      this.nextLiveState = false
     }
-  }
-
-  executeNext() {
-    this.live = this.nextState
   }
 }
 
@@ -95,13 +91,13 @@ class LifeContainer {
 
   nextLifeCycle(): void {
     this.lifes.forEach(life => {
-      const populate = life.rounds.reduce((p, position) => {
+      const aliveLifeCount = life.rounds.reduce((p, position) => {
         const targetLife = this.select(position.x, position.y)
         return targetLife && targetLife.live ? p + 1 : p
       }, 0)
-      life.nextLiveState(populate)
+      life.calculateNextLiveState(aliveLifeCount)
     })
-    this.lifes.forEach(life => life.executeNext())
+    this.lifes.forEach(life => life.live = life.nextLiveState)
   }
 
   getLifes(): Life[] {
@@ -118,7 +114,7 @@ class LifeContainer {
 /////////////////////// MAIN ///////////////////////
 Zone.current.fork({ name: 'myZone' }).runGuarded(() => {
 
-  const lifeContainer = new LifeContainer(3, 3);
+  const lifeContainer = new LifeContainer(5, 5);
 
   const dispathcer$ = new Dispatcher<Action>();
   const provider$ = new BehaviorSubject<LifeContainer>(lifeContainer);
