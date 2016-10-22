@@ -58,9 +58,11 @@ class Life implements LifeState {
   }
 
   calculateNextLiveState(aliveLifeCount: number): void {
-    if (aliveLifeCount >= 2 && aliveLifeCount < 4) {
+    if (!this.live && aliveLifeCount === 3) { // birth
       this.nextLiveState = true
-    } else {
+    } else if (this.live && aliveLifeCount > 1 && aliveLifeCount < 4) { // alive
+      this.nextLiveState = true
+    } else { // dead
       this.nextLiveState = false
     }
   }
@@ -154,10 +156,10 @@ Zone.current.fork({ name: 'myZone' }).runGuarded(() => {
     })
 
 
-  dispatcher$.next(new AliveAction([{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }, { x: 99, y: 99 }]));
+  dispatcher$.next(new AliveAction([{ x: 0, y: 0 }, { x: 0, y: 1 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 99, y: 99 }]));
   console.time('NextActions')
-  lodash.range(0, 9).forEach(() => {    
-    dispatcher$.next(new NextAction());    
+  lodash.range(0, 9).forEach(() => {
+    dispatcher$.next(new NextAction());
   })
   console.timeEnd('NextActions')
 
