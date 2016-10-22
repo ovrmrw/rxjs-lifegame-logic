@@ -9,13 +9,16 @@ declare const Zone: any;
 class Dispatcher<T> extends Subject<T>{
   constructor() { super() }
 }
-class Provider<T> extends Subject<T>{
-  constructor() { super() }
-}
 
 interface Position {
   x: number
   y: number
+}
+
+interface LifeState {
+  x: number
+  y: number
+  live: boolean
 }
 
 
@@ -30,19 +33,19 @@ type Action = AliveAction | NextAction;
 
 
 /////////////////////// LIFE ///////////////////////
-class Life {
-  rounds: Position[]
-  nextLiveState: boolean
+class Life implements LifeState {
+  arounds: Position[]
+  private nextLiveState: boolean
 
   constructor(
     public x: number,
     public y: number,
     public live: boolean = false,
   ) {
-    this.rounds = this.generateRounds(x, y)
+    this.arounds = this.generateArounds(x, y)
   }
 
-  generateRounds(x, y): Position[] {
+  generateArounds(x: number, y: number): Position[] {
     const left = { x, y: y - 1 };
     const right = { x, y: y + 1 };
     const leftTop = Object.assign({}, left, { x: x - 1 });
@@ -54,12 +57,16 @@ class Life {
     return [leftTop, centerTop, rightTop, left, right, leftBottom, centerBottom, rightBottom];
   }
 
-  calculateNextLiveState(aliveLifeCount: number) {
+  calculateNextLiveState(aliveLifeCount: number): void {
     if (aliveLifeCount >= 2 && aliveLifeCount < 4) {
       this.nextLiveState = true
     } else {
       this.nextLiveState = false
     }
+  }
+
+  forwardLifeCycle(): void {
+    this.live = this.nextLiveState
   }
 }
 
@@ -89,24 +96,24 @@ class LifeContainer {
       .map(life => life.live = true);
   }
 
-  nextLifeCycle(): void {
+  tickLifeCycle(): void {
     this.lifes.forEach(life => {
-      const aliveLifeCount = life.rounds.reduce((p, position) => {
+      const aliveLifeCount = life.arounds.reduce((p, position) => {
         const targetLife = this.select(position.x, position.y)
         return targetLife && targetLife.live ? p + 1 : p
       }, 0)
       life.calculateNextLiveState(aliveLifeCount)
     })
-    this.lifes.forEach(life => life.live = life.nextLiveState)
+
+    this.lifes.forEach(life => life.forwardLifeCycle())
   }
 
   getLifes(): Life[] {
     return this.lifes;
   }
 
-  select(x: number, y: number): Life | null {
-    const lifes = this.lifes.filter(life => life.x === x && life.y === y)
-    return lifes.length ? lifes[0] : null
+  select(x: number, y: number): Life | undefined {
+    return this.lifes.find(life => life.x === x && life.y === y)
   }
 }
 
@@ -116,39 +123,42 @@ Zone.current.fork({ name: 'myZone' }).runGuarded(() => {
 
   const lifeContainer = new LifeContainer(5, 5);
 
-  const dispathcer$ = new Dispatcher<Action>();
-  const provider$ = new BehaviorSubject<LifeContainer>(lifeContainer);
+  const dispatcher$ = new Dispatcher<Action>();
+  const provider$ = new BehaviorSubject<LifeState[]>(lifeContainer.getLifes());
 
 
-  dispathcer$
+  dispatcher$
     .scan<LifeContainer>((container, action) => {
       if (action instanceof AliveAction) {
         action.positions.forEach(position => container.vitalize(position))
         return container
       } else if (action instanceof NextAction) {
-        container.nextLifeCycle()
+        container.tickLifeCycle()
         return container
       } else {
         return container
       }
     }, lifeContainer)
-    .map(container => lodash.cloneDeep(container))
-    .subscribe(container => {
-      provider$.next(container)
+    .map<LifeState[]>(container => {
+      const lifes = container.getLifes().map(life => lodash.pick(life, ['x', 'y', 'live']) as LifeState)
+      return lodash.cloneDeep(lifes)
+    })
+    .subscribe(lifes => {
+      provider$.next(lifes)
     })
 
 
   provider$
-    .subscribe(container => {
-      console.log(container)
+    .subscribe(lifes => {
+      console.log(lifes)
     })
 
 
-  dispathcer$.next(new AliveAction([{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }, { x: 99, y: 99 }]));
-  dispathcer$.next(new NextAction());
-  dispathcer$.next(new NextAction());
-  dispathcer$.next(new NextAction());
-  dispathcer$.next(new NextAction());
-  dispathcer$.next(new NextAction());
+  dispatcher$.next(new AliveAction([{ x: 0, y: 0 }, { x: 1, y: 1 }, { x: 2, y: 2 }, { x: 99, y: 99 }]));
+  console.time('NextActions')
+  lodash.range(0, 9).forEach(() => {    
+    dispatcher$.next(new NextAction());    
+  })
+  console.timeEnd('NextActions')
 
 });
